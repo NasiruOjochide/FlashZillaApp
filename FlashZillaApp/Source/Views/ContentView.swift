@@ -7,60 +7,43 @@
 
 import SwiftUI
 
-
-extension View{
-    func stacked(at position : Int, in total : Int) -> some View{
-        let offset = Double(total - position)
-        return self.offset(x: 0, y: offset * 10)
-    }
-}
-
-
 struct ContentView: View {
-    
     
     @Environment(\.accessibilityDifferentiateWithoutColor) var differentiateWithoutColor
     @Environment(\.accessibilityVoiceOverEnabled) var voiceOverEnabled
     @Environment(\.scenePhase) var scenePhase
-    @State private var isActive = true
-    
-    @State private var cards = [Card]()
-    
-    @State private var timeRemaining = 100
-    let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
-    @State private var showingEditScreen = false
-    
+    @ObservedObject var vm = CardsViewModel()
     
     var body: some View {
-        ZStack{
+        ZStack {
             Image(decorative: "background")
                 .resizable()
                 .ignoresSafeArea()
-            VStack{
-                Text("Time: \(timeRemaining)")
+            VStack {
+                Text("Time: \(vm.timeRemaining)")
                     .font(.largeTitle)
                     .foregroundColor(.white)
                     .padding(.horizontal, 20)
                     .padding(.vertical, 5)
                     .background(.black.opacity(0.75))
                     .clipShape(Capsule())
-                ZStack{
-                    ForEach(0..<cards.count, id: \.self){index in
-                        CardView(card: cards[index]){
+                ZStack {
+                    ForEach(vm.cards.indices, id: \.self) { index in
+                        CardView(card: vm.cards[index]) {
                             withAnimation{
-                                removeCard(at: index)
+                                vm.removeCard(at: index)
                             }
                         }
-                        .stacked(at: index, in: cards.count)
-                        .allowsHitTesting(index == cards.count - 1)
-                        .accessibilityHidden(index < cards.count - 1)
+                        .stacked(at: index, in: vm.cards.count)
+                        .allowsHitTesting(index == vm.cards.count - 1)
+                        .accessibilityHidden(index < vm.cards.count - 1)
                     }
                 }
-                .allowsHitTesting(timeRemaining > 0)
+                .allowsHitTesting(vm.timeRemaining > 0)
                 
                 
-                if cards.isEmpty {
-                    Button("Start Again", action: resetCards)
+                if vm.cards.isEmpty {
+                    Button("Start Again", action: vm.resetCards)
                         .padding()
                         .background(.white)
                         .foregroundColor(.black)
@@ -74,7 +57,7 @@ struct ContentView: View {
                     Spacer()
                     
                     Button {
-                        showingEditScreen = true
+                        vm.showingEditScreen = true
                     } label: {
                         Image(systemName: "plus.circle")
                             .padding()
@@ -90,14 +73,14 @@ struct ContentView: View {
             .padding()
             
             
-            if differentiateWithoutColor || voiceOverEnabled{
+            if differentiateWithoutColor || voiceOverEnabled {
                 VStack {
                     Spacer()
                     
                     HStack {
                         Button {
                             withAnimation {
-                                removeCard(at: cards.count - 1)
+                                vm.removeCard(at: vm.cards.count - 1)
                             }
                         } label: {
                             Image(systemName: "xmark.circle")
@@ -112,7 +95,7 @@ struct ContentView: View {
                         
                         Button {
                             withAnimation {
-                                removeCard(at: cards.count - 1)
+                                vm.removeCard(at: vm.cards.count - 1)
                             }
                         } label: {
                             Image(systemName: "checkmark.circle")
@@ -130,45 +113,17 @@ struct ContentView: View {
             }
             
         }
-        .onReceive(timer) { time in
-            guard isActive else { return }
-            
-            if timeRemaining > 0 {
-                timeRemaining -= 1
-            }
-        }
         .onChange(of: scenePhase) { newPhase in
             if newPhase == .active {
-                if cards.isEmpty == false {
-                    isActive = true
+                if vm.cards.isEmpty == false {
+                    vm.isActive = true
                 }
             } else {
-                isActive = false
-            }
-        }.sheet(isPresented: $showingEditScreen, onDismiss: resetCards, content: EditView.init)/*Note that passing edit view like this will only work when the initializer expects no parameter*/
-            .onAppear(perform: resetCards)
-    }
-    
-    func removeCard(at index: Int) {
-        guard index >= 0 else{return}
-        cards.remove(at: index)
-        if cards.isEmpty {
-            isActive = false
-        }
-    }
-    
-    func resetCards() {
-        timeRemaining = 100
-        isActive = true
-        loadData()
-    }
-    
-    func loadData() {
-        if let data = UserDefaults.standard.data(forKey: "Cards") {
-            if let decoded = try? JSONDecoder().decode([Card].self, from: data) {
-                cards = decoded
+                vm.isActive = false
             }
         }
+        .sheet(isPresented: $vm.showingEditScreen, onDismiss: vm.resetCards, content: EditView.init)/*Note that passing edit view like this will only work when the initializer expects no parameter*/
+        .onAppear(perform: vm.resetCards)
     }
 }
 
@@ -176,5 +131,12 @@ struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
             .previewInterfaceOrientation(.landscapeLeft)
+    }
+}
+
+extension View {
+    func stacked(at position : Int, in total : Int) -> some View {
+        let offset = Double(total - position)
+        return self.offset(x: 0, y: offset * 10)
     }
 }
